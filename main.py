@@ -1,4 +1,4 @@
-import streamlit as st
+  import streamlit as st
 import random
 import google.generativeai as genai
 import re
@@ -8,7 +8,7 @@ from functools import wraps
 from typing import List, Dict, Optional
 
 # Constants
-GOOGLE_API_KEY = "AIzaSyD94caePSbfDiNDUYgSi0mtXlcEkrZwCG0"
+GOOGLE_API_KEY = "AIzaSyAFkjthP6CgmBu7CTTQmUf59v0HaJ7bjQ0"  # Moved API key here for now
 MAX_RETRIES = 3
 RATE_LIMIT_SECONDS = 1
 
@@ -74,6 +74,21 @@ BACKGROUND_STYLE = """
     </style>
 """
 
+def rate_limit(seconds: int):
+    """Rate limiting decorator"""
+    last_run = {}
+    
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            now = time.time()
+            if func.__name__ in last_run and now - last_run[func.__name__] < seconds:
+                raise Exception("Please wait before making another request")
+            last_run[func.__name__] = now
+            return func(*args, **kwargs)
+        return wrapper
+    return decorator
+
 class LLMLibrary:
     def __init__(self):
         self.setup_page()
@@ -87,10 +102,6 @@ class LLMLibrary:
     
     def initialize_gemini(self):
         """Initialize Gemini API with error handling"""
-        if not GOOGLE_API_KEY:
-            st.error("Google API key not found. Please set it in your environment variables.")
-            st.stop()
-            
         try:
             genai.configure(api_key=GOOGLE_API_KEY)
             self.model = genai.GenerativeModel(
@@ -105,21 +116,6 @@ class LLMLibrary:
         except Exception as e:
             st.error(f"Failed to initialize Gemini API: {str(e)}")
             st.stop()
-    
-    def rate_limit(seconds: int):
-        """Rate limiting decorator"""
-        last_run = {}
-        
-        def decorator(func):
-            @wraps(func)
-            def wrapper(*args, **kwargs):
-                now = time.time()
-                if func.__name__ in last_run and now - last_run[func.__name__] < seconds:
-                    raise Exception("Please wait before making another request")
-                last_run[func.__name__] = now
-                return func(*args, **kwargs)
-            return wrapper
-        return decorator
 
     def generate_unique_gradient(self) -> str:
         """Generate a unique gradient with safe color combinations"""
