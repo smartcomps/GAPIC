@@ -5,6 +5,19 @@ from styles import BACKGROUND_SVG, CSS
 from config import GENERATION_CONFIG, SYSTEM_PROMPT
 from utils import generate_unique_gradient, extract_topics_and_content
 
+def process_input(input_text):
+    """Process the input and generate topics"""
+    try:
+        with st.spinner("Generating topics..."):
+            chat_session = st.session_state.gemini_model.start_chat(history=[])
+            response = chat_session.send_message(input_text)
+            topics_and_content = extract_topics_and_content(response.text)
+            
+            if topics_and_content:
+                st.session_state.topics_and_content = topics_and_content
+    except Exception as e:
+        st.error(f"Error during topic generation: {e}")
+
 def render_input_section(centered=False):
     """Render the input section either at bottom or centered"""
     style_class = "center-bottom" if centered else "fixed-bottom"
@@ -25,6 +38,12 @@ def render_input_section(centered=False):
         border-radius: 10px 10px 0 0;
         margin-bottom: 0;
     }}
+    .button-group {{
+        display: flex;
+        gap: 10px;
+        justify-content: center;
+        margin-top: 10px;
+    }}
     </style>
     """
     
@@ -39,16 +58,14 @@ def render_input_section(centered=False):
     with cols[1]:
         if st.button("Generate Topics", use_container_width=True):
             if user_input.strip():
-                try:
-                    with st.spinner("Generating topics..."):
-                        chat_session = st.session_state.gemini_model.start_chat(history=[])
-                        response = chat_session.send_message(user_input)
-                        topics_and_content = extract_topics_and_content(response.text)
-                        
-                        if topics_and_content:
-                            st.session_state.topics_and_content = topics_and_content
-                except Exception as e:
-                    st.error(f"Error during topic generation: {e}")
+                process_input(user_input)
+    
+    # Example button in its own container
+    st.markdown('<div class="button-group">', unsafe_allow_html=True)
+    if st.button("Ex", key="example_button"):
+        process_input("5")
+    st.markdown('</div>', unsafe_allow_html=True)
+    
     st.markdown('</div>', unsafe_allow_html=True)
 
 def main():
