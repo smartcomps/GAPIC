@@ -6,13 +6,9 @@ import os
 import time
 from functools import wraps
 from typing import List, Dict, Optional
-from dotenv import load_dotenv
-
-# Load environment variables
-load_dotenv()
 
 # Constants
-GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
+GOOGLE_API_KEY = "AIzaSyD94caePSbfDiNDUYgSi0mtXlcEkrZwCG0"
 MAX_RETRIES = 3
 RATE_LIMIT_SECONDS = 1
 
