@@ -178,7 +178,7 @@ with st.container():
                         }
 
                         model = genai.GenerativeModel(
-                            model_name="gemini-1.5-pro",
+                            model_name="gemini-2.0-flash-exp",
                             generation_config=generation_config,
                             system_instruction="""You are an AI designed to generate detailed, journalistic-style content on a wide array of topics. When provided with a broad topic or theme, you will randomly select a related subtopic or aspect to explore and craft a long-form, highly informative, and engaging article about it. Your role is to:
 
