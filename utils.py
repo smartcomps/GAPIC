@@ -1,6 +1,7 @@
+
 import random
 import re
-from typing import List, Dict
+from typing import List, Dict, Optional  # Added Optional here
 import time
 from functools import wraps
 
@@ -28,7 +29,6 @@ def generate_unique_gradient() -> str:
 
 def sanitize_html(text: str) -> str:
     """Sanitize HTML content"""
-    # Remove potentially dangerous tags and attributes
     dangerous_tags = ['script', 'style', 'iframe', 'object', 'embed']
     for tag in dangerous_tags:
         text = re.sub(f'<{tag}.*?</{tag}>', '', text, flags=re.DOTALL)
