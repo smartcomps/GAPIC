@@ -1,6 +1,6 @@
 import streamlit as st
 import google.generativeai as genai
-from typing import Optional
+from typing import List, Dict, Optional  # Added imports here
 import time
 from config import GOOGLE_API_KEY, MAX_RETRIES, RATE_LIMIT_SECONDS
 from styles import BACKGROUND_STYLE
@@ -50,7 +50,6 @@ class LLMLibrary:
             for section in sections:
                 title = "Topic" + section.split("**")[0].strip()
                 content = "**".join(section.split("**")[1:]).strip()
-                # Sanitize content before storing
                 content = sanitize_html(content)
                 topics_and_content.append({"topic": title, "content": content})
         except Exception as e:
