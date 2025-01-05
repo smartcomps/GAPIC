@@ -5,7 +5,7 @@ import re
 import os
 
 # Page config and UI setup
-st.set_page_config(page_title="AI Topic Explorer", layout="wide")
+st.set_page_config(page_title="LLM Library", layout="wide")
 
 # Add animated background and styles
 st.markdown("""
