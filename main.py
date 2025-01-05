@@ -3,21 +3,87 @@ import random
 import google.generativeai as genai
 import re
 import os
-import time
-from functools import wraps
-from typing import List, Dict, Optional
 
-# Constants
-GOOGLE_API_KEY = "AIzaSyAFkjthP6CgmBu7CTTQmUf59v0HaJ7bjQ0"  # Moved API key here for now
-MAX_RETRIES = 3
-RATE_LIMIT_SECONDS = 1
+# Page config and UI setup
+st.set_page_config(page_title="LLM Library", layout="wide")
 
-# Styles
-BACKGROUND_STYLE = """
+# Initialize Gemini only once at startup
+if 'gemini_model' not in st.session_state:
+    genai.configure(api_key="AIzaSyAFkjthP6CgmBu7CTTQmUf59v0HaJ7bjQ0")
+    generation_config = {
+        "temperature": 1,
+        "top_p": 0.95,
+        "top_k": 40,
+        "max_output_tokens": 8000,
+        "response_mime_type": "text/plain",
+    }
+    st.session_state.gemini_model = genai.GenerativeModel(
+        model_name="gemini-2.0-flash-exp",
+        generation_config=generation_config,
+        system_instruction="""You are an AI designed to generate detailed, journalistic-style content on a wide array of topics. When provided with a broad topic or theme, you will randomly select a related subtopic or aspect to explore and craft a long-form, highly informative, and engaging article about it. Your role is to:
+
+1. Understand the broad topic provided by the user.
+
+2. Randomly select a related subtopic from within the scope of the main topic (e.g., if the user says "The Universe," you might explore black holes, stars, galaxies, or theories about the cosmos).
+
+3. Generate a detailed, structured, and educational piece in a journalistic or storytelling tone. The content must:
+
+Provide background and context on the subtopic.
+Include key scientific, historical, or cultural details.
+Engage the reader with examples, anecdotes, or relevant theories.
+Conclude with insights, takeaways, or open questions to spark curiosity.
+
+Be creative, but ensure factual accuracy, logical flow, and clarity. Your content should feel as though it was written by a knowledgeable journalist or storyteller deeply invested in the topic.
+
+If no broad topic is provided and you receive a number from the user, you will independently choose the number of random subject specify by the number from a diverse range of fields (e.g., space, science, art, history, technology, culture) and generate content for each accordingly.Each topic should contain a huge amount of information in the style specify above
+
+Format each topic as:
+        **Topic 1: [Topic Name]**"""
+    )
+
+# Add animated background and styles
+st.markdown("""
+    <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: -1;">
+        <svg width="100" height="100" viewBox="0 0 100 100" style="position: absolute; top: 10%; left: 10%; animation: float1 20s infinite ease-in-out;">
+            <polygon points="50,0 100,100 0,100" fill="#1a73e8" style="opacity: 0.1;"/>
+        </svg>
+        <svg width="80" height="80" viewBox="0 0 100 100" style="position: absolute; top: 60%; left: 80%; animation: float2 25s infinite ease-in-out;">
+            <polygon points="50,0 100,100 0,100" fill="#4285f4" style="opacity: 0.1;"/>
+        </svg>
+        <svg width="120" height="120" viewBox="0 0 100 100" style="position: absolute; top: 80%; left: 20%; animation: float3 22s infinite ease-in-out;">
+            <polygon points="50,0 100,100 0,100" fill="#0f4fb8" style="opacity: 0.1;"/>
+        </svg>
+        <svg width="90" height="90" viewBox="0 0 100 100" style="position: absolute; top: 30%; left: 60%; animation: float4 28s infinite ease-in-out;">
+            <polygon points="50,0 100,100 0,100" fill="#1a73e8" style="opacity: 0.1;"/>
+        </svg>
+        <svg width="110" height="110" viewBox="0 0 100 100" style="position: absolute; top: 70%; left: 40%; animation: float5 24s infinite ease-in-out;">
+            <polygon points="50,0 100,100 0,100" fill="#4285f4" style="opacity: 0.1;"/>
+        </svg>
+    </div>
+""", unsafe_allow_html=True)
+
+# Add styles including animations and modified topic box styling
+st.markdown("""
     <style>
     @keyframes float1 {
         0%, 100% { transform: translate(0, 0) rotate(0deg); }
         50% { transform: translate(100px, -100px) rotate(180deg); }
+    }
+    @keyframes float2 {
+        0%, 100% { transform: translate(0, 0) rotate(0deg); }
+        50% { transform: translate(-100px, 100px) rotate(-180deg); }
+    }
+    @keyframes float3 {
+        0%, 100% { transform: translate(0, 0) rotate(0deg); }
+        50% { transform: translate(80px, -80px) rotate(120deg); }
+    }
+    @keyframes float4 {
+        0%, 100% { transform: translate(0, 0) rotate(0deg); }
+        50% { transform: translate(-80px, 80px) rotate(-120deg); }
+    }
+    @keyframes float5 {
+        0%, 100% { transform: translate(0, 0) rotate(0deg); }
+        50% { transform: translate(120px, -120px) rotate(240deg); }
     }
     
     .stApp {
@@ -55,6 +121,25 @@ BACKGROUND_STYLE = """
         flex-grow: 1;
         font-size: 0.9em;
     }
+    .topic-box h3 {
+        font-size: 1em;
+        margin-bottom: 10px;
+    }
+    .view-full-button {
+        background-color: #1a73e8;
+        color: white;
+        padding: 6px 10px;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        text-align: center;
+        margin-top: 8px;
+        width: 100%;
+        font-size: 0.9em;
+    }
+    .view-full-button:hover {
+        background-color: #0f4fb8;
+    }
     .fixed-bottom {
         position: fixed;
         bottom: 0;
@@ -72,169 +157,91 @@ BACKGROUND_STYLE = """
         z-index: 1;
     }
     </style>
-"""
+""", unsafe_allow_html=True)
 
-def rate_limit(seconds: int):
-    """Rate limiting decorator"""
-    last_run = {}
-    
-    def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            now = time.time()
-            if func.__name__ in last_run and now - last_run[func.__name__] < seconds:
-                raise Exception("Please wait before making another request")
-            last_run[func.__name__] = now
-            return func(*args, **kwargs)
-        return wrapper
-    return decorator
+# Title centered at the top
+st.markdown("<h1 style='text-align: center;'>LLM Library</h1>", unsafe_allow_html=True)
 
-class LLMLibrary:
-    def __init__(self):
-        self.setup_page()
-        self.initialize_gemini()
-        
-    def setup_page(self):
-        """Setup page configuration and styling"""
-        st.set_page_config(page_title="LLM Library", layout="wide")
-        st.markdown(BACKGROUND_STYLE, unsafe_allow_html=True)
-        st.markdown("<h1 style='text-align: center;'>LLM Library</h1>", unsafe_allow_html=True)
+# Helper function for gradient generation
+def generate_unique_gradient():
+    color1 = f"#{random.randint(0, 255):02x}{random.randint(0, 255):02x}{random.randint(0, 255):02x}"
+    color2 = f"#{random.randint(0, 255):02x}{random.randint(0, 255):02x}{random.randint(0, 255):02x}"
+    return f"linear-gradient(135deg, {color1}, {color2})"
+
+# Extract topics and contents from AI response
+def extract_topics_and_content(ai_response):
+    if not ai_response:
+        return []
     
-    def initialize_gemini(self):
-        """Initialize Gemini API with error handling"""
+    topics_and_content = []
+    sections = ai_response.split("**Topic")[1:]
+    
+    for section in sections:
         try:
-            genai.configure(api_key=GOOGLE_API_KEY)
-            self.model = genai.GenerativeModel(
-                model_name="gemini-2.0-flash-exp",
-                generation_config={
-                    "temperature": 1,
-                    "top_p": 0.95,
-                    "top_k": 40,
-                    "max_output_tokens": 8000,
-                }
-            )
-        except Exception as e:
-            st.error(f"Failed to initialize Gemini API: {str(e)}")
-            st.stop()
-
-    def generate_unique_gradient(self) -> str:
-        """Generate a unique gradient with safe color combinations"""
-        def generate_safe_color():
-            return f"#{random.randint(30, 200):02x}{random.randint(30, 200):02x}{random.randint(30, 200):02x}"
-        
-        return f"linear-gradient(135deg, {generate_safe_color()}, {generate_safe_color()})"
-
-    @staticmethod
-    def sanitize_html(text: str) -> str:
-        """Sanitize HTML content"""
-        dangerous_tags = ['script', 'style', 'iframe', 'object', 'embed']
-        for tag in dangerous_tags:
-            text = re.sub(f'<{tag}.*?</{tag}>', '', text, flags=re.DOTALL)
-        return text
-    
-    @staticmethod
-    def extract_topics_and_content(ai_response: str) -> List[Dict[str, str]]:
-        """Extract topics and content from AI response with error handling"""
-        if not ai_response:
-            return []
-        
-        topics_and_content = []
-        try:
-            sections = ai_response.split("**Topic")[1:]
-            for section in sections:
-                title = "Topic" + section.split("**")[0].strip()
-                content = "**".join(section.split("**")[1:]).strip()
-                content = LLMLibrary.sanitize_html(content)
-                topics_and_content.append({"topic": title, "content": content})
-        except Exception as e:
-            st.error(f"Error parsing AI response: {str(e)}")
-            return []
+            title = "Topic" + section.split("**")[0].strip()
+            content = "**".join(section.split("**")[1:]).strip()
+            topics_and_content.append({"topic": title, "content": content})
+        except IndexError:
+            continue
             
-        return topics_and_content
-    
-    @rate_limit(RATE_LIMIT_SECONDS)
-    def generate_topics(self, user_input: str) -> Optional[List[Dict[str, str]]]:
-        """Generate topics with rate limiting and retry logic"""
-        if not user_input.strip():
-            st.warning("Please enter a topic or number.")
-            return None
-            
-        for attempt in range(MAX_RETRIES):
-            try:
-                chat_session = self.model.start_chat(history=[])
-                response = chat_session.send_message(user_input)
-                return self.extract_topics_and_content(response.text)
-            except Exception as e:
-                if attempt == MAX_RETRIES - 1:
-                    st.error(f"Failed to generate topics after {MAX_RETRIES} attempts: {str(e)}")
-                    return None
-                time.sleep(1)
-    
-    def render_topics_grid(self, topics_and_content: List[Dict[str, str]]):
-        """Render topics in a responsive grid"""
-        cols = st.columns(5)
-        for idx, item in enumerate(topics_and_content):
-            with cols[idx % 5]:
-                gradient = self.generate_unique_gradient()
-                st.markdown(
-                    f"""
-                    <div class="topic-box" style="background: {gradient};">
-                        <h3>{item['topic']}</h3>
-                        <p class="topic-preview">{item['content'][:80]}...</p>
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
-                if st.button("View Full", key=f"view_full_{idx}"):
-                    st.session_state.view_full = idx
-                    st.experimental_rerun()
-    
-    def render_full_topic(self, topic_idx: int, topics_and_content: List[Dict[str, str]]):
-        """Render full topic view"""
-        topic = topics_and_content[topic_idx]
-        if st.button("← Back to Topics"):
-            del st.session_state.view_full
-            st.experimental_rerun()
-        
-        st.markdown(f"### {topic['topic']}")
-        st.markdown(topic['content'])
-    
-    def render_input_section(self):
-        """Render the fixed bottom input section"""
-        with st.container():
-            st.markdown('<div class="fixed-bottom">', unsafe_allow_html=True)
-            cols = st.columns([3, 1])
-            with cols[0]:
-                user_input = st.text_input(
-                    "Enter a topic or number to explore:",
-                    placeholder="e.g., Artificial Intelligence or '4'",
-                    key="fixed_input"
-                )
-            with cols[1]:
-                if st.button("Generate Topics", use_container_width=True):
+    return topics_and_content
+
+# Fixed bottom input section
+with st.container():
+    st.markdown('<div class="fixed-bottom">', unsafe_allow_html=True)
+    cols = st.columns([3, 1])
+    with cols[0]:
+        user_input = st.text_input("Enter a topic or number to explore:", 
+                                placeholder="e.g., Artificial Intelligence or '4'",
+                                key="fixed_input")
+    with cols[1]:
+        if st.button("Generate Topics", use_container_width=True):
+            if user_input.strip():
+                try:
                     with st.spinner("Generating topics..."):
-                        topics_and_content = self.generate_topics(user_input)
+                        # Use the pre-configured model from session state
+                        chat_session = st.session_state.gemini_model.start_chat(history=[])
+                        response = chat_session.send_message(user_input)
+                        topics_and_content = extract_topics_and_content(response.text)
+                        
                         if topics_and_content:
                             st.session_state.topics_and_content = topics_and_content
-            st.markdown('</div>', unsafe_allow_html=True)
+                except Exception as e:
+                    st.error(f"Error during topic generation: {e}")
+    st.markdown('</div>', unsafe_allow_html=True)
 
-def main():
-    app = LLMLibrary()
-    app.render_input_section()
-    
-    if "topics_and_content" in st.session_state and st.session_state.topics_and_content:
-        with st.container():
-            st.markdown('<div class="content-padding">', unsafe_allow_html=True)
+# Display content area
+if "topics_and_content" in st.session_state and st.session_state.topics_and_content:
+    with st.container():
+        st.markdown('<div class="content-padding">', unsafe_allow_html=True)
+        
+        # Handle the "View Full" functionality
+        if "view_full" in st.session_state:
+            topic_idx = st.session_state.view_full
+            topic = st.session_state.topics_and_content[topic_idx]
             
-            if "view_full" in st.session_state:
-                app.render_full_topic(
-                    st.session_state.view_full,
-                    st.session_state.topics_and_content
-                )
-            else:
-                app.render_topics_grid(st.session_state.topics_and_content)
+            if st.button("← Back to Topics"):
+                del st.session_state.view_full
+                st.experimental_rerun()
             
-            st.markdown('</div>', unsafe_allow_html=True)
-
-if __name__ == "__main__":
-    main()
+            st.markdown(f"### {topic['topic']}")
+            st.markdown(topic['content'])
+        else:
+            # Display the generated topics in a 5-column grid
+            cols = st.columns(5)
+            for idx, item in enumerate(st.session_state.topics_and_content):
+                with cols[idx % 5]:
+                    gradient = generate_unique_gradient()
+                    st.markdown(f"""
+                        <div class="topic-box" style="background: {gradient};">
+                            <h3>{item['topic']}</h3>
+                            <p class="topic-preview">
+                                {item['content'][:80]}...
+                            </p>
+                        </div>
+                    """, unsafe_allow_html=True)
+                    if st.button("View Full", key=f"view_full_{idx}"):
+                        st.session_state.view_full = idx
+                        st.experimental_rerun()
+        
+        st.markdown('</div>', unsafe_allow_html=True)
