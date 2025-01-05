@@ -1,0 +1,5 @@
+import os
+
+GOOGLE_API_KEY = "AIzaSyD94caePSbfDiNDUYgSi0mtXlcEkrZwCG0"
+MAX_RETRIES = 3
+RATE_LIMIT_SECONDS = 1
