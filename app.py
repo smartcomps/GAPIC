@@ -126,7 +126,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Title centered at the top
-st.markdown("<h1 style='text-align: center;'>AI Topic Explorer</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center;'>LLM Library</h1>", unsafe_allow_html=True)
 
 # Helper function for gradient generation
 def generate_unique_gradient():
